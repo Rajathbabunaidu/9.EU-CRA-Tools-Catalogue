@@ -1,8 +1,8 @@
 {
   "name": "nvent-eu-cra-tools-catalogue",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "private": true,
-  "description": "nVent EU CRA Hub Page 3 reusable Tools Catalogue - one WeWeb Vue 3 element",
+  "description": "WeWeb Page 3 — Tool capabilities marketplace; questions managed in Page 2",
   "scripts": {
     "serve": "weweb serve",
     "build": "weweb build --name=eu-cra-tools-catalogue --type=element",

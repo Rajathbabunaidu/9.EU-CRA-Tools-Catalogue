@@ -1,103 +1,113 @@
-# nVent EU CRA Hub — Page 3: Reusable Tools Catalogue
+# nVent EU CRA Hub — Page 3 Tools Catalogue
 
-**v1.0.0 · WeWeb coded element · Vue 3 · Supabase PostgreSQL**
+**v2.0.0 · One WeWeb Vue 3 coded element · Supabase PostgreSQL · Catalogue-only redesign**
 
-One WeWeb page, **one parent coded component**, with four internal views: Tool Catalogue, Tool Designer, Preview & Validation and Release Management. This is a separate Page 3 element and does **not** replace the existing Page 2 Template Builder.
+This package replaces the **Page 3** Tools Catalogue. It does **not** replace Page 2 Template Builder and does **not** store questionnaire sections, questions, options, hints or rules in Page 3.
 
-## Included features
+## Final approved responsibility split
 
-| Feature | Implementation |
+| Page 3 — Tools Catalogue | Page 2 — Template Builder |
 |---|---|
-| Tool registration | **+ New Tool** registers the tool and its initial v1.0.0 draft in Supabase atomically. No separate Register button. |
-| Tool catalogue | Live search/filter, tool identity and lifecycle, active/inactive states. |
-| Tool Designer | Tool metadata; ordered sections; ordered questions; dynamically loaded question types; option labels/values/hints; required/enable, attachment and comment settings. |
-| Draft persistence | Auto-save (950-ms debounce) in PostgreSQL, with optimistic revision checking and Saving/Saved/Error indication. No separate Save Tool button. |
-| Preview | Local response simulator; no assessment or submission records are created. |
-| Validation | Checks section/question names, codes, question types, options, at least one active question. Rechecked inside the release RPC. |
-| Release | Atomic server-side validation followed by an immutable `cra_tm_tool_releases` row. |
-| Versioning | Create next draft from previous definition without altering previous releases. |
-| Template Builder integration | On **new** tool-instance assignment, an AFTER INSERT trigger copies released sections/questions/options to existing Template Builder tables. No Page 2 component edit is needed for this operation. |
+| Catalogue of registered, versioned tool capabilities | Select an eligible active release under a contributor |
+| Create tool; generate unique stable code automatically | Create and configure an independent `cra_tm_tool_instances` record |
+| Tool name, category, icon, description, lifecycle | Create sections, questions, answer options, descriptions, hints |
+| Create editable draft; automatic metadata save | Configure attachment/comment settings, conditional and risk rules |
+| Release capability version; activate/deactivate tools and releases | Preview, validate and publish the configured assessment template |
 
-**Scope:** This version creates `QUESTIONNAIRE` tools only. Other tool types require corresponding design/execution support; merely adding a row with another `tool_type` is not enough. Risk/conditional rules remain managed in the existing Template Builder. The preview is not the runtime assessment engine.
+**Currently implemented tool engine: `QUESTIONNAIRE` only.** A dedicated checklist or evidence-collection engine must be implemented in the assessment editor/renderer before those types can be registered and released. The visual catalogue labels those as planned, not functional.
 
-## Repository layout
+## Supabase contract, inspected from supplied schema
 
-```text
-nvent-eu-cra-tools-catalogue/
-├── package.json
-├── ww-config.js
-├── src/
-│   ├── wwElement.vue        # One parent component, all views
-│   ├── api.mjs              # PostgREST + RPC adapter
-│   └── logic.mjs            # Definition schema, validation, ordering
-├── sql/
-│   ├── 01_tools_catalogue_drafts_and_release.sql
-│   └── 02_development_anon_grants_ONLY.sql
-├── docs/
-│   ├── DATABASE_AND_INTEGRATION.md
-│   └── GITHUB_WEWEB_IMPORT.md
-└── tests/
-    └── tool-catalogue.test.mjs
+Existing tables:
+- `public.cra_tm_tools`: `id`, `tool_code`, `tool_name`, `description`, `tool_type`, `is_active`, audit dates.
+- `public.cra_tm_tool_releases`: `id`, `tool_id`, `release_version`, `release_notes`, `definition` JSONB, `is_active`, audit dates. Existing `cra_tm_protect_tool_release()` keeps identity/definition immutable; release activity is adjustable.
+- `public.cra_tm_tool_drafts`: created by the **previous Page 3 SQL 01** and already applied in the user's development project. One draft per tool, with optimistic `revision` and `is_locked`.
+- `public.cra_tm_tool_instances`: Page 2 attachment. Content is configured under existing `cra_tm_tool_sections`, `cra_tm_tool_questions`, `cra_tm_tool_answer_options`.
+
+The new catalogue release definition is metadata only:
+
+```json
+{
+  "schema_version": 2,
+  "kind": "TOOL_CAPABILITY",
+  "tool_type": "QUESTIONNAIRE",
+  "catalogue": { "category": "Assessment", "icon": "clipboard-list" },
+  "capabilities": {
+    "template_question_builder": true,
+    "supports_sections": true,
+    "supports_questions": true,
+    "supports_options": true,
+    "supports_attachments": true,
+    "supports_comments": true,
+    "supports_conditional_rules": true,
+    "supports_risk_issue_rules": true
+  }
+}
 ```
 
-## Installation (do this in order)
+No questionnaire questions or sections are authored on Page 3. A new tool instance starts empty and is configured inside Page 2.
 
-### 1. Apply **SQL 01** in your Supabase **development** SQL Editor
+## IMPORTANT: deployment sequence
 
-Run the entire file `sql/01_tools_catalogue_drafts_and_release.sql` once. It is wrapped in `BEGIN; ... COMMIT;` and is additive. It creates:
+**1. Run `sql/01_catalogue_only_upgrade_v2.sql` in the same Supabase DEVELOPMENT project used by Pages 2 and 3.** Run the ENTIRE script from `BEGIN;` to `COMMIT;` with no SQL text selected. This updates four existing catalogue RPC functions, makes generated tool codes automatic, permits releasing metadata-only tools without questions, and **drops the old AFTER INSERT question-materialization trigger**. It does not delete existing data or released versions. The prior immutable release constraint remains in effect.
 
-- **one** new table `cra_tm_tool_drafts` (drafts cannot be stored in existing immutable releases);
-- six restricted SQL functions to create, auto-save, release, version and activate/deactivate tools/releases;
-- one trigger function + AFTER INSERT trigger to copy **released questionnaire content** into a newly attached tool instance.
+**2. Permissions:** If previous Tools Catalogue SQL 02 development grants are already present, you normally **do not need to repeat them**. If you encounter an RPC permission error, run `sql/02_optional_dev_anon_permissions.sql` **only for your isolated no-auth development project**. It grants anonymous catalogue reads and write RPC execution. Never use this arrangement on a publicly accessible production project.
 
-It does **not** drop your existing review tables or alter released definitions. It does not backfill old tool instances.
+**3. Update the EXISTING GitHub Page 3 repository:** Extract this ZIP and copy the files from its folder into your existing local `9.EU CRA Tools Catalogue` working directory, **preserving `.git`**. Then in PowerShell:
 
-### 2. Apply **SQL 02 only for isolated no-Auth development**
+```powershell
+cd "$env:USERPROFILE\Downloads\CRA-Action Hub\weweb-components\9.EU CRA Tools Catalogue"
+git add .
+git commit -m "Redesign Page 3 as catalogue-only tools marketplace v2.0.0"
+git push origin main
+```
 
-The user's current workflow uses the Supabase publishable key **without a signed-in Supabase user**. In this situation, requests use the `anon` role. Run `sql/02_development_anon_grants_ONLY.sql` to grant read access to the four catalogue tables and execution of the six restricted development RPCs. No direct INSERT/UPDATE/DELETE table access is granted to `anon` by this SQL.
+You do not need to create a new GitHub repository. In WeWeb → Coded Components, update/import the latest commit of the existing repository and set the successful version active.
 
-**Important:** Even with server-side validation, granting unauthenticated users access to these create/release RPCs is **not safe for production**. Do not expose a write-enabled dev Supabase project publicly. Before production, implement Supabase Auth, authorized roles and RLS, and revoke `anon` EXECUTE permissions on write RPCs. Never put `sb_secret_`, service-role keys or database passwords in browser properties.
+**4. Configure the imported component's properties** on Page 3:
+- `Supabase Project URL`: `https://<project-ref>.supabase.co`
+- `Supabase Publishable Key`: `sb_publishable_...`
+- `Allow development writes`: ON only in a private isolated dev project, OFF for read-only usage.
+- `Initial Tool ID`: optional.
 
-### 3. Push this repository to GitHub
+No service-role key or `sb_secret_...` key should be placed in a browser component or GitHub repository. The REST adapter uses HTTPS `/rest/v1/` with the `apikey` header. No JWT Bearer header is added for the publishable key.
 
-Extract the ZIP and put the **contents** of `nvent-eu-cra-tools-catalogue` at the root of a *new* GitHub repository. Commands are in `docs/GITHUB_WEWEB_IMPORT.md`. Do not add `.env` credentials.
+**5. One focused verification (not a full test cycle):** Open Page 3 → select your existing `Product Security Questionnaire` tool → if it has an **old v1 designer draft**, click **Convert draft**. This safely archives the old draft JSON under `legacy_definition`. Go to **Release Management → Release Tool**. Return to Page 2, refresh, attach the active release to a contributor, and configure sections/questions there.
 
-### 4. Import into WeWeb
+## Existing records are preserved
 
-WeWeb workspace Dashboard → Coded components → Import element → select your GitHub repo and `main` branch → set imported version active. Drag **EU CRA Hub — Tools Catalogue** onto **Page 3 — Tools**.
+- No previous tools, releases, draft rows, contributor assignments, template instances, sections, questions, or options are deleted.
+- Old `schema_version: 1` releases stay in the database and visible as **Legacy v1 definition**; their old question data is not copied to NEW tool instances after this upgrade. Existing tool instances retain their own content.
+- An editable v1 draft can be converted explicitly. The old content is retained inside its new draft JSON under `legacy_definition` for reference; it is not converted into active questionnaire content.
+- A released catalogue definition is immutable. Modify the tool by creating the next draft version; edits only affect that future release.
 
-In WeWeb component properties configure:
+## Development checks and limitations
 
-- **Supabase Project URL:** `https://<your-project>.supabase.co`
-- **Supabase Publishable Key:** `sb_publishable_…`
-- **Allow development write operations:** `ON` only in private, isolated development.
-- Initial Tool ID: optional.
+- JavaScript unit tests and API adapter tests: `npm test`.
+- JS script and attribute/markup checks are done during packaging.
+- The WeWeb cloud build and live PostgreSQL execution **cannot be verified from this offline source package**; deploy to your private project before treating this as fully integrated.
+- Permission issues with Page 2's separate RPCs (for example `cra_tm_save_tool_instance`) must be resolved in Page 2's own development permissions; the Page 3 package does not grant those privileges.
+- Authentication/RLS/role authorization are required for production. A publishable key is not user authorization.
 
-The component uses direct HTTPS PostgREST requests with `apikey` header. No Supabase service role or custom WeWeb backend plugin is required.
+## Files
 
-### 5. Try one tool (not an extended test cycle)
-
-Click + New Tool → enter name/code → Designer → Add Section → Add Question → select a populated question type → add answer options if applicable → Preview & Validation → Release Management → Release Tool. In Template Builder, refresh Page 2 and choose **+ Add tool from catalogue**: the active release should appear. On new attachment its content is materialized to Template Builder section/question/option tables.
-
-If the question-type dropdown is empty, the existing `cra_tm_question_types` reference table has no active rows; configure those reference records before creating a questionnaire. This package does not overwrite customer-defined question types.
-
-### 6. Existing Template Builder permissions
-
-Page 2 uses its own RPCs, such as `cra_tm_save_tool_instance`. If Page 2 receives `permission denied for function...` or for a table when attaching a tool, that's a **Page 2 anon permission gap**, not failure of this Tool Catalogue. Add only the required Page 2 role grants after examining the exact error. Do not broadly grant the entire `public` schema to `anon`.
-
-## Current verification status
-
-- Source is aligned to the **uploaded 2026-11-15 backend schema** and the existing Page 2 WeWeb package.
-- The catalogue tool/release/draft RPC contracts and materialization trigger are provided in SQL, **but have not been run against your live Supabase instance**.
-- JavaScript unit checks pass; the Vue script syntax and markup were checked locally.
-- **Full WeWeb CLI compilation, live browser use and server-side SQL execution are not yet verified.** The GitHub import/build and your private development Supabase connection are the first live integration check.
+```text
+├─ src/
+│  ├─ wwElement.vue                  # single parent Vue component; catalogue, profile, releases
+│  ├─ api.mjs                        # Supabase PostgREST adapter
+│  └─ logic.mjs                      # release metadata and versioning
+├─ sql/
+│  ├─ 01_catalogue_only_upgrade_v2.sql
+│  └─ 02_optional_dev_anon_permissions.sql
+├─ tests/catalogue.test.mjs
+├─ docs/INTEGRATION_AND_UPGRADE.md
+├─ ww-config.js
+├─ package.json
+├─ CHANGELOG.md
+└─ README.md
+```
 
 ## References
 
-- WeWeb coded elements: https://developer.weweb.io/component-anatomy.html
-- WeWeb GitHub import: https://developer.weweb.io/using-llms-to-generate-custom-coded-comps/using-claude-code.html
-- Supabase publishable-key guidelines: https://supabase.com/docs/guides/getting-started/api-keys
-
-
-### v1.0.1 import fix
-The initial v1.0.0 contained a duplicate `:disabled` attribute on the Add option button. This is corrected in v1.0.1. Push to GitHub `main`, then return to WeWeb Coded components and import/update the latest version.
+- [WeWeb custom coded component anatomy](https://developer.weweb.io/component-anatomy.html)
+- [Supabase publishable-key guidance](https://supabase.com/docs/guides/getting-started/api-keys)
