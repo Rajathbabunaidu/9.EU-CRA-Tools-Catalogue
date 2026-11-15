@@ -1,3 +1,8 @@
+## v1.0.1 — WeWeb Vue template compilation fix (2026-11-15)
+
+- Removed duplicate `:disabled` binding from the “+ Add option” button in `src/wwElement.vue`. Vue SFC compilation rejects duplicate attributes and can cause WeWeb import to fail.
+- No changes to database SQL, RPCs, or application behavior.
+
 # Changelog
 
 ## 1.0.0 — 2026-11-15

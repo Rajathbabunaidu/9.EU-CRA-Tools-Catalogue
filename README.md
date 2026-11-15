@@ -97,3 +97,7 @@ Page 2 uses its own RPCs, such as `cra_tm_save_tool_instance`. If Page 2 receive
 - WeWeb coded elements: https://developer.weweb.io/component-anatomy.html
 - WeWeb GitHub import: https://developer.weweb.io/using-llms-to-generate-custom-coded-comps/using-claude-code.html
 - Supabase publishable-key guidelines: https://supabase.com/docs/guides/getting-started/api-keys
+
+
+### v1.0.1 import fix
+The initial v1.0.0 contained a duplicate `:disabled` attribute on the Add option button. This is corrected in v1.0.1. Push to GitHub `main`, then return to WeWeb Coded components and import/update the latest version.
