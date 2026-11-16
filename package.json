@@ -1,8 +1,8 @@
 {
   "name": "nvent-eu-cra-tools-catalogue",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
-  "description": "WeWeb Page 3 — Tool capabilities marketplace; questions managed in Page 2",
+  "description": "WeWeb Page 3 — validated tool capability catalogue and Template Builder handoff",
   "scripts": {
     "serve": "weweb serve",
     "build": "weweb build --name=eu-cra-tools-catalogue --type=element",

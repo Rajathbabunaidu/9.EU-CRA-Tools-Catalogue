@@ -42,6 +42,50 @@ export function toolStatus(tool,draft,releases) {
   if((releases||[]).length)return 'No active releases';
   return 'Not released';
 }
+/** Inspect an immutable catalogue release without modifying its historical definition.
+ * Page 2 currently filters only active tool/release flags; compatibility is reported
+ * separately so a legacy release is never silently represented as v2-ready.
+ */
+export const REQUIRED_QUESTIONNAIRE_CAPABILITIES = Object.freeze([
+  'template_question_builder','supports_sections','supports_questions',
+  'supports_options','supports_attachments','supports_comments',
+  'supports_conditional_rules','supports_risk_issue_rules'
+]);
+export function releaseCompatibility(release,toolType='QUESTIONNAIRE') {
+  if (!release || typeof release !== 'object') return {code:'MISSING',ready:false,label:'Missing release'};
+  if (!isSupportedType(toolType))return {code:'UNSUPPORTED',ready:false,label:'Unsupported tool engine'};
+  const definition=release.definition;
+  if (definition && String(definition.schema_version)==='1')return {code:'LEGACY',ready:false,label:'Legacy v1 definition'};
+  if (!isCapabilityDefinition(definition) || definition.tool_type!==toolType)
+    return {code:'INVALID',ready:false,label:'Incompatible release definition'};
+  // Section/question data remains owned by the Template Builder, never by a released capability.
+  if (Object.hasOwn(definition,'sections') || Object.hasOwn(definition,'questions'))
+    return {code:'INVALID',ready:false,label:'Contains questionnaire content'};
+  const missing=REQUIRED_QUESTIONNAIRE_CAPABILITIES.filter(key=>definition.capabilities[key]!==true);
+  if(missing.length)return {code:'INCOMPLETE',ready:false,label:'Incomplete capability definition',missing};
+  return {code:'READY',ready:true,label:'Compatible with Template Builder'};
+}
+export function integrationReadiness(tool,releases=[]) {
+  if (!tool)return {ready:false,code:'MISSING_TOOL',message:'Select a registered tool.'};
+  if (tool.is_active===false)return {ready:false,code:'INACTIVE_TOOL',message:'Activate the tool to enable new assignments.'};
+  const active=(releases||[]).filter(r=>r.is_active!==false && Number(r.tool_id)===Number(tool.id));
+  if (!active.length)return {ready:false,code:'NO_ACTIVE_RELEASE',message:'Create or activate a release.'};
+  const compatible=orderedReleases(active,tool.id).find(r=>releaseCompatibility(r,tool.tool_type).ready);
+  if(!compatible)return {ready:false,code:'LEGACY_OR_INCOMPATIBLE',message:'No active v2-compatible release. Create a new catalogue-only release.'};
+  return {ready:true,code:'READY',releaseId:Number(compatible.id),version:compatible.release_version,
+    message:`Compatible release v${compatible.release_version} is active.`};
+}
+/** UI-side validation; database uniqueness and revision checks remain authoritative. */
+export function validateNextVersion(candidate,releases=[]) {
+  const value=String(candidate??'').trim();
+  if(!/^\d+\.\d+\.\d+$/.test(value))return 'Version must use numeric format (for example 1.0.1).';
+  const parts=value.split('.').map(Number);
+  if(parts.some(n=>!Number.isSafeInteger(n)))return 'Version numbers are too large.';
+  const previous=(releases||[]).map(x=>String(x.release_version||'')).filter(x=>/^\d+\.\d+\.\d+$/.test(x));
+  if(previous.some(x=>compareVersions(value,x)===0))return 'This version number already exists.';
+  if(previous.some(x=>compareVersions(value,x)<=0))return 'The new version must be higher than every existing release.';
+  return null;
+}
 export function validateDraft({name,category,icon}) {
   const issues=[];
   if(!String(name||'').trim())issues.push('Tool name is required.');

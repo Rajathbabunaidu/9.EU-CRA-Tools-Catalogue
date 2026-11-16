@@ -1,29 +1,50 @@
+// v2.1.0 contract tests replacing obsolete v1 questionnaire-designer tests.
+// Sections/questions/options are intentionally owned by Page 2, not Page 3.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createApi,projectUrl,publicKey} from '../src/api.mjs';
-import {emptyDefinition,newSection,newQuestion,newOption,normalizedDefinition,validateDefinition,nextVersion} from '../src/logic.mjs';
-const types=[{type_code:'SINGLE',type_name:'Single choice',supports_options:true,supports_multiple_values:false,is_active:true},{type_code:'TEXT',type_name:'Text',supports_options:false,is_active:true}];
-function definition(){const s=newSection();s.section_name='Product security';const q=newQuestion('Q_1','SINGLE');q.question_text='Is the feature protected?';const a=newOption('YES',0);a.option_label='Yes';const b=newOption('NO',1);b.option_label='No';q.options=[a,b];s.questions=[q];return normalizedDefinition({schema_version:1,sections:[s]});}
-test('project URL validation disallows secrets in URL, HTTP and paths',()=>{
- assert.equal(projectUrl('https://abc.supabase.co/'),'https://abc.supabase.co');
- assert.throws(()=>projectUrl('http://abc.supabase.co'));
- assert.throws(()=>projectUrl('https://abc.supabase.co/rest/v1'));
+import {catalogueDefinition,releaseCompatibility,integrationReadiness,validateNextVersion,
+  REQUIRED_QUESTIONNAIRE_CAPABILITIES} from '../src/logic.mjs';
+
+const tool={id:12,tool_type:'QUESTIONNAIRE',is_active:true};
+const version=(n,definition=catalogueDefinition(),active=true)=>
+  ({id:n,tool_id:12,release_version:`1.0.${n}`,definition,is_active:active});
+
+test('new v2 capability can be handed off to Template Builder',()=>{
+  const r=version(1);
+  assert.deepEqual(REQUIRED_QUESTIONNAIRE_CAPABILITIES.length,8);
+  assert.equal(releaseCompatibility(r,tool.tool_type).ready,true);
+  const ready=integrationReadiness(tool,[r]);
+  assert.equal(ready.ready,true);
+  assert.equal(ready.releaseId,1);
 });
-test('client accepts only Supabase publishable keys',()=>{
- assert.equal(publicKey('sb_publishable_example'),'sb_publishable_example');
- assert.throws(()=>publicKey('sb_secret_demo'));
- assert.throws(()=>publicKey('eyJhbGciOi'));
+test('legacy releases are visible but do not falsely claim v2 compatibility',()=>{
+  const old=version(1,{schema_version:1,sections:[{questions:[{question_text:'Historical'}]}]});
+  assert.equal(releaseCompatibility(old,'QUESTIONNAIRE').code,'LEGACY');
+  assert.equal(integrationReadiness(tool,[old]).code,'LEGACY_OR_INCOMPATIBLE');
 });
-test('new version is predictable',()=>assert.equal(nextVersion('1.0.0'),'1.1.0'));
-test('empty tool cannot be released',()=>assert.equal(validateDefinition(emptyDefinition(),types).valid,false));
-test('valid questionnaire passes',()=>{const d=definition();const result=validateDefinition(d,types);assert.equal(result.valid,true,JSON.stringify(result.errors));assert.equal(result.questionCount,1);});
-test('duplicate question codes are rejected',()=>{const d=definition();d.sections[0].questions.push({...d.sections[0].questions[0],client_id:'other'});assert.match(validateDefinition(d,types).errors.join(' '),/duplicate code/);});
-test('unknown question type is rejected',()=>{const d=definition();d.sections[0].questions[0].question_type='UNSUPPORTED';assert.match(validateDefinition(d,types).errors.join(' '),/active question type/);});
-test('option-based question requires at least two options',()=>{const d=definition();d.sections[0].questions[0].options.splice(1,1);assert.match(validateDefinition(d,types).errors.join(' '),/two enabled options/);});
-test('normalization preserves stable IDs and ordered contents',()=>{const d=definition();const id=d.sections[0].client_id;assert.equal(normalizedDefinition(d).sections[0].client_id,id);});
-test('Supabase API sends publishable-key RPC without secret authorization header',async()=>{
- let call;
- const api=createApi({url:'https://abc.supabase.co',key:'sb_publishable_example',fetchFn:async(u,opts)=>{call={u,opts};return {ok:true,text:async()=>JSON.stringify([{tool_id:42}])};}});
- const out=await api.rpc('cra_tm_create_catalogue_tool',{p_tool_code:'TEST',p_tool_name:'Test'});
- assert.equal(out[0].tool_id,42);assert.equal(call.opts.method,'POST');assert.equal(call.opts.headers.apikey,'sb_publishable_example');assert.equal(call.opts.headers.Authorization,undefined);assert.match(call.u,/rest\/v1\/rpc\/cra_tm_create_catalogue_tool/);
+test('inactive, missing and unsupported release states are explicit',()=>{
+  assert.equal(integrationReadiness({...tool,is_active:false},[version(1)]).code,'INACTIVE_TOOL');
+  assert.equal(integrationReadiness(tool,[version(1,catalogueDefinition(),false)]).code,'NO_ACTIVE_RELEASE');
+  assert.equal(releaseCompatibility(version(1),'CHECKLIST').code,'UNSUPPORTED');
+  assert.equal(releaseCompatibility(null,'QUESTIONNAIRE').code,'MISSING');
+});
+test('definitions that contain questionnaire content or missing flags are not compatible',()=>{
+  const content=catalogueDefinition();content.sections=[];
+  assert.equal(releaseCompatibility(version(1,content)).code,'INVALID');
+  const incomplete=catalogueDefinition();delete incomplete.capabilities.supports_options;
+  assert.equal(releaseCompatibility(version(1,incomplete)).code,'INCOMPLETE');
+  assert.deepEqual(releaseCompatibility(version(1,incomplete)).missing,['supports_options']);
+});
+test('readiness chooses the highest compatible active release',()=>{
+  const list=[version(2,{schema_version:1}),version(1),version(3,catalogueDefinition(),false)];
+  assert.equal(integrationReadiness(tool,list).releaseId,1);
+});
+test('version validation is strict, increasing and checks duplicates',()=>{
+  const list=[version(9),version(10)];
+  assert.equal(validateNextVersion('1.0.11',list),null);
+  assert.match(validateNextVersion('1.0.10',list),/already exists/);
+  assert.match(validateNextVersion('1.0.9',list),/already exists/);
+  assert.match(validateNextVersion('1.0.8',list),/higher/);
+  assert.match(validateNextVersion('1.x.0',list),/numeric/);
+  assert.match(validateNextVersion('999999999999999999999.0.0',list),/too large/);
 });

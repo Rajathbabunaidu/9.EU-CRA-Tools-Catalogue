@@ -1,35 +1,14 @@
-# GitHub push + WeWeb import instructions (Windows PowerShell)
+# Existing GitHub / WeWeb component upgrade (Page 3 v2.1.0)
 
-## Push the extracted component files
+This is an **upgrade of the same Tools Catalogue component**. Do not create another Tools page, repository or WeWeb component unless your engineering deployment process explicitly requires a separate test environment.
 
-Create an **empty** GitHub repo for Page 3 (do not use the Page 2 Template Builder repository). In your terminal, navigate to the extracted folder containing `package.json` and `ww-config.js`:
+1. Back up your current existing Page 3 Git repository and current WeWeb component revision.
+2. Extract the v2.1.0 release ZIP and copy its files into the EXISTING Page 3 Git working directory. Keep your `.git`, repository remote and site-specific settings. Never commit Supabase keys.
+3. In that directory, run `npm test` with Node 20+ and review the diff.
+4. Commit, push to your approved branch, then import/update the same coded component under WeWeb → Coded Components. Activate the new version only in a test project first.
+5. On Page 3 keep the same component properties: Supabase Project URL, publishable key, initial tool ID and accent color. Enable development writes only for the isolated development database.
+6. Follow `UPGRADE_AND_VERIFICATION_v2.1.0.md` for the acceptance checklist. Test Page 2 release visibility before approving the upgrade.
 
-```powershell
-cd "C:\path\to\nvent-eu-cra-tools-catalogue"
-git init
-git add .
-git commit -m "Initial commit - nVent EU CRA Tools Catalogue"
-git branch -M main
-git remote add origin https://github.com/<YOUR_USERNAME>/<YOUR_NEW_REPO>.git
-git push -u origin main
-```
+**Database:** No new SQL for v2.1.0 when v2.0.0 is already operational. Do not run the previous v1 draft/materialization SQL. If upgrading from v1, follow `README.md` and carefully verify the original v2 base upgrade migration status first.
 
-Replace the sample path and repository remote with your actual values. If Git says `remote origin already exists`, use `git remote set-url origin <URL>` instead of `git remote add origin ...`.
-
-## Import into WeWeb
-
-1. Sign in to WeWeb and open your workspace **Dashboard**.
-2. Open **Coded components** → **Import element**.
-3. Select your new GitHub repository and `main` branch.
-4. Complete the import build and **activate** the imported version.
-5. In the WeWeb editor, open your **Page 3 — Tools** page.
-6. Add the **EU CRA Hub — Tools Catalogue** coded component. Make it full-width.
-7. Under component properties, enter Supabase URL and **publishable** key; enable development writes only for your isolated development project.
-
-## Update later
-
-Edit repository, bump `package.json` version (for example `1.0.1`), commit and push. Then activate the new version in WeWeb Coded Components dashboard.
-
-## Precondition
-
-Run `sql/01_tools_catalogue_drafts_and_release.sql` and optionally `sql/02_development_anon_grants_ONLY.sql` (only for no-Auth isolated development) before attempting write actions.
+**Security:** Production needs Supabase Auth, RLS and function-level authorization; `sb_publishable_` alone does not authorize data modification. Do not enable anonymous writes publicly.

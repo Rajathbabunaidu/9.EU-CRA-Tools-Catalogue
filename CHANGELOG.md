@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.1.0 — 2026-11-16
+
+- Preserved existing catalogue/profile/release layout and Page 2 ownership of questionnaire content.
+- Added read-only v2 release compatibility verification alongside existing active-flag eligibility; legacy releases remain visible and untouched.
+- Added explicit Template Builder handoff readiness to the Tool Profile and compatibility labels for individual releases.
+- Prevented new version creation when no baseline release exists; validate increasing numeric release versions before invoking existing RPC.
+- Prevented activation/deactivation and connection switching from silently discarding unsaved draft edits.
+- Replaced obsolete v1 tests with v2 handoff and backwards-compatibility regression tests; no database migrations in this release.
+- No tool deletion, database mutation, or new non-questionnaire engines introduced.
+
+
 ## 2.0.0 — 2026-11-15
 
 - Rebuilt Page 3 as an app-store-style **catalogue-only** tool marketplace.
